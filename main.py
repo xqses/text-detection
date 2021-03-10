@@ -3,7 +3,7 @@ import numpy as np
 import scipy as scp
 
 from basics import open_file, preprocessing, pyramid, resize, show_img, write_img
-from segmentation import segmentation
+from segmentation import segmentation, find_contours
 from sharpening import sharpen
 from noise_and_shades import remove_noise, correct_shading
 from line_cleaning import line_cleaning
@@ -54,8 +54,17 @@ def exec(img):
     sharpened = sharpened.astype(np.uint8)
     # show_img(sharpened, "Sharpened image")
 
-    lines_cleared = line_cleaning(segmented_img, sharpened)
-    show_img(lines_cleared, "Lines image")
+    lines_cleared = line_cleaning(sharpened, gs)
+
+    for i in range(4):
+        shading_corrected = correct_shading(cv2.cvtColor(lines_cleared, cv2.COLOR_GRAY2BGR)).astype(np.uint8)
+        gs = cv2.cvtColor(shading_corrected, cv2.COLOR_BGR2GRAY)
+        sharpened, bins = sharpen(gs.astype(np.uint8))
+        sharpened = sharpened.astype(np.uint8)
+        lines_cleared = line_cleaning(sharpened, lines_cleared)
+
+    show_img(lines_cleared, "lines image")
+    write_img("cleared_img.jpg", lines_cleared)
 
 
 def single(os: str):
