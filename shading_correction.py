@@ -22,7 +22,7 @@ from basics import resize, show_img
 ##
 ## The Software is provided "as is", without warranty of any kind.
 
-def shaCorr(inp_img, edge_preserving = True, f = 0.5, bright = 0.8, dark = 0.3, d = 6 , iter = 10, contrast = 2, corr = 0, pfact = 0, msize=100):
+def shaCorr(inp_img, edge_preserving = False, f = 0.5, bright = 0.8, dark = 0.3, d = 6 , iter = 10, contrast = 2, corr = 0, pfact = 0, msize=100):
     if len(inp_img.shape) > 2:
         final = cv2.cvtColor(inp_img, cv2.COLOR_BGR2HSV)
         if edge_preserving:

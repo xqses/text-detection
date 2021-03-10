@@ -19,9 +19,10 @@ def draw_lines(img, lines, ld):
     return ld.drawSegments(img, lines)
 
 
-def line_cleaning(img):
+def line_cleaning(img, sharpened_img):
     fld = xim.createFastLineDetector()
-    lines = find_lines(img, fld)
+    lines = find_lines(sharpened_img, fld)
     mask = np.zeros_like(img).astype(np.uint8)
     mask = draw_lines(mask, lines, fld)
     cleaned_img = clean_lines(img, mask, lines)
+    return draw_lines(img, lines, fld)

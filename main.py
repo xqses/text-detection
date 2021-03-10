@@ -5,26 +5,58 @@ import scipy as scp
 from basics import open_file, preprocessing, pyramid, resize, show_img, write_img
 from segmentation import segmentation
 from sharpening import sharpen
-# from pythonRLSA import rlsa
 from noise_and_shades import remove_noise, correct_shading
+from line_cleaning import line_cleaning
 
 
 ## Image name format should be "IMG_+{# of img}+.JPG"
 # For an object with reference to one image, use explicit file name and set multiple=False
 # For an object with reference to an array of images, use name="IMG_", set multiple=True
-# See function main_multi() where n_img = desired # of images
+# See function multi() where n_img = desired # of images
+
+
+#########################################################
+##                                                     ##
+##                                                     ##
+##             Image processing pipeline               ##
+##          for the master thesis project of           ##
+##      Automatic Handwritten Text Cell Detection      ##
+##              in Historical Documents                ##
+##                                                     ##
+##              Author: Olle Dahlstedt                 ##
+##            Last VCS Update: 2021-03-10              ##
+##                                                     ##
+##                                                     ##
+#########################################################
+
 
 def exec(img):
+
     scaled_img = pyramid(img, direction="down", iterations=2)
+    # show_img(scaled_img, "Downsampled image")
 
-    hsv_img = preprocessing(scaled_img)
+    hsv_img = preprocessing(scaled_img).astype(np.uint8)
+    # show_img(hsv_img, "HSV-converted image")
 
-    segmented_img = segmentation(scaled_img, hsv_img)
+    segmented_img = segmentation(scaled_img, hsv_img).astype(np.uint8)
+    # show_img(segmented_img, "Segmented image")
 
-    gs = cv2.cvtColor(segmented_img, cv2.COLOR_BGR2GRAY)
+    # noise_removed = remove_noise(segmented_img)
+    # show_img(noise_removed, "Noise-removed image")
 
-    eq_hist_one, bins = sharpen(gs)
-    show_img(eq_hist_one, "eq_hist")
+    shading_corrected = correct_shading(segmented_img).astype(np.uint8)
+    # show_img(shading_corrected, "Shading-corrected image")
+
+    gs = cv2.cvtColor(shading_corrected, cv2.COLOR_BGR2GRAY)
+    # show_img(gs, "Grayscale image"
+
+    sharpened, bins = sharpen(gs)
+    sharpened = sharpened.astype(np.uint8)
+    # show_img(sharpened, "Sharpened image")
+
+    lines_cleared = line_cleaning(segmented_img, sharpened)
+    show_img(lines_cleared, "Lines image")
+
 
 def single(os: str):
     os = "win"
