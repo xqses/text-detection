@@ -7,14 +7,13 @@ def find_lines(img, ld):
     return lines
 
 def clean_lines(gs_img, mask, lines):
-    show_img(mask, "Mask")
+    # show_img(mask, "Mask")
     gs_mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     cleaned = gs_img
     m_img = gs_mask & gs_img
     mask = cv2.dilate(m_img, None).astype(np.uint8)
-    show_img(mask, "Mask")
+    # show_img(mask, "Mask")
     median_pixel = np.median(cleaned.flatten())
-    print(median_pixel)
     cleaned[mask != 0] = median_pixel
     # show_img(cropped_img.astype(np.uint8), "title")
     # seg_pts = np.array(list(zip(np.where((eq_hist_two == mask_two).all(axis = 2)))), dtype=np.uint8)
@@ -26,7 +25,7 @@ def draw_lines(img, lines, ld):
 
 
 def line_cleaning(sharpened_img, gs_img):
-    fld = cv2.ximgproc.createFastLineDetector(_length_threshold=20, _canny_th1=30)
+    fld = cv2.ximgproc.createFastLineDetector(_length_threshold=20, _canny_th1=30, _canny_th2=30, _canny_aperture_size=5)
     lines = find_lines(sharpened_img, fld)
     mask = np.zeros_like(sharpened_img).astype(np.uint8)
     mask = draw_lines(mask, lines, fld)

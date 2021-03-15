@@ -7,6 +7,7 @@ class ImageHelper:
     def __init__(self):
         self.id = 0
 
+    # Avoid using arrays of images unless specific reasons require this
     def set_img_array(self, name, n_img, img_format):
         self.img_array = [None] * n_img
         for i in range(n_img):
@@ -29,7 +30,7 @@ def write_img(name, img):
 def open_file(name: str, multiple: bool, n_img: int):
     if multiple:
         imgs_obj = ImageHelper()
-        imgs_obj.set_img_array(name=name, n_img=n_img, img_format=".JPG")
+        imgs_obj = imgs_obj.get_img_generator(name=name, n_img=n_img, img_format=".JPG")
         return imgs_obj
     else:
         img_obj = ImageHelper()

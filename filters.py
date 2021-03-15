@@ -1,5 +1,6 @@
 import numpy as np
 import skimage.filters as sk_filt
+import skfuzzy
 import scipy as scp
 import cv2
 from fourier import fourier
@@ -178,6 +179,7 @@ def convolution(img, fltr, use_threads):
 
 
 def non_max_supp(filtered_img, wh):
+    # Not supported yet
     rows, channels = map(int, filtered_img.shape)
 
     mask_size = (wh, wh) # dilation mask size tuple
@@ -230,29 +232,16 @@ def key_pts(img, fltr, args, use_threads):
         print('invalid args')
         return None
     # print("retrieved kernel")
-
-    # k_conv_d = scp.signal.convolve(k, d)
-    # d_conv_k = scp.signal.convolve(d, k)
-    # d2_conv_k = scp.signal.convolve(d2, k)
-    # k_conv_k = scp.signal.convolve(k, k)
-    # print("convolved k, d, d2")
     g2D = cv2.getGaussianKernel(ksize=9, sigma=9 / 6)
 
     ### Avoid too many expensive convolution computations by calling with args
-    # print(k_conv_k.shape, d_conv_k.shape)
-    # print(np.outer(k_conv_k, d_conv_k).shape)
-    # print(img.shape)
+
     k_conv_k, d_conv_k, d2_conv_k = kernel(fltr)
     if args == 'get_tensor':
-        # print("entered get tensor")
-        # print("###" * 30)
-        # print("Yttre produkten av k konvolverat med k, och k .T")
-        # print(np.outer(k_conv_k, d_conv_k.T))
+        # Yttre produkten av k konvolverat med k, och k .T
         Ix = convolution(img=img, fltr=np.outer(k_conv_k, d_conv_k.T), use_threads=use_threads)
 
-        # Ix = sk_filt.edges.convolve(img, np.outer(k_conv_k, d_conv_k.T))
         Iy = convolution(img=img, fltr=np.outer(d_conv_k, k_conv_k.T), use_threads=use_threads)
-        # print(Ix.shape, Iy.shape)
 
         # Notes: np.multiply (* is the shorthand) performs element-wise multiplication
         # Not to be confused with np.matmul, or its shorthand @
@@ -306,3 +295,8 @@ def butterworth(img, cutoff, order):
     real_y = np.sqrt((np.real(inv_y) ** 2) + (np.imag(inv_y) ** 2))
     # normalize G
     return real_y
+
+def fire(img):
+    print(img.shape)
+    fuzzy_filtered = skfuzzy.fire2d(img, l1=0, l2=255)
+    return fuzzy_filtered

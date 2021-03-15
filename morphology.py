@@ -4,38 +4,48 @@ import numpy as np
 def get_kernel(size):
     return cv2.getStructuringElement(cv2.MORPH_RECT, size)
 
-def blackhat(img):
-    # define size (tuple)
-    sz = (200,200)
-    kern = get_kernel(sz)
-    blackhat = cv2.morphologyEx(img, cv2.MORPH_BLACKHAT, kern)
-    return blackhat
-# thresh = cv2.adaptiveThreshold(tophat.astype(np.uint8),255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY ,11,2)
-# _, thresh = cv2.threshold(eq_hist_two.astype(np.uint8),0, 255, cv2.THRESH_OTSU)
+def blackhat(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_BLACKHAT, kern)
 
-def gradient(img):
-    sz = (200,200)
-    kern = get_kernel(sz)
-    gradient = cv2.morphologyEx(img, cv2.MORPH_GRADIENT, kern)
-    return gradient
+def gradient(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_GRADIENT, kern)
 
-def tophat(img):
-    sz = (200,200)
-    kern = get_kernel(sz)
-    tophat = cv2.morphologyEx(img, cv2.MORPH_TOPHAT, kern)
-    return tophat
+def tophat(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_TOPHAT, kern)
 
-def get_morph(img, morph, threshold=False):
+def opening(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_OPEN, kern)
+
+def close(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_CLOSE, kern)
+
+def dilation(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_DILATE, kern)
+
+def erosion(img, kern):
+    return cv2.morphologyEx(img, cv2.MORPH_ERODE, kern)
+
+def get_morph(img, morph, sz, threshold=False):
+    kern = get_kernel(sz)
     switcher = {
         "tophat": tophat,
         "blackhat": blackhat,
-        "gradient": gradient
+        "gradient": gradient,
+        "open": opening,
+        "close": close,
+        "dilate": dilation,
+        "erosion": erosion
     }
     if threshold:
-        get_func = lambda func: switcher.get(morph, lambda: "No such morph defined")
-        morphed = get_func(img)
-        return cv2.adaptiveThreshold(morphed.astype(np.uint8),255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY ,11,2)
+        get_func = lambda arg: switcher.get(arg, lambda: "No such morph defined")
+        f_morph = get_func(morph)
+        morphed = f_morph(img, kern)
+        gs_img = cv2.cvtColor(morphed, cv2.COLOR_BGR2GRAY)
+        ret, thresh = cv2.threshold(gs_img,0,255, cv2.THRESH_OTSU)
+        return thresh.astype(np.uint8)
+        # return cv2.adaptiveThreshold(gs_img.astype(np.uint8),255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY ,11,2)
     else:
-        get_func = lambda func: switcher.get(morph, lambda: "No such morph defined")
-        morphed = get_func(img)
+        get_func = lambda arg: switcher.get(arg, lambda: "No such morph defined")
+        f_morph = get_func(morph)
+        morphed = f_morph(img, kern)
         return morphed.astype(np.uint8)

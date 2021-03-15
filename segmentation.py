@@ -1,7 +1,13 @@
 import numpy as np
+import scipy as scp
 import cv2
+from basics import show_img
 from matplotlib import pyplot as plt
 from watershed import morphologize, get_markers, watershed, dilate
+from morphology import get_morph
+from shading_correction import shaCorr
+from skimage.feature import peak_local_max
+import skimage.segmentation as sk_seg
 
 
 # Find contours
@@ -32,15 +38,30 @@ def find_contours(threshold_img, book_idx):
             # print(np.where(cont_img == 255), "pts =", cont_pts)
     return max_area, cont_x, cont_y, cont_w, cont_h
 
+def alternative_segmentation(img, hsv_img):
+    book_img = get_book(hsv_img)
+    res, thresh = cv2.threshold(book_img, 0, 255, cv2.THRESH_BINARY)
+    distance = scp.ndimage.distance_transform_edt(thresh)
+    coords = peak_local_max(distance, footprint=np.ones((3, 3)), labels=thresh)
+    mask = np.zeros(distance.shape, dtype=bool)
+    mask[tuple(coords.T)] = True
+    markers, _ = scp.ndimage.label(mask)
+    labels = sk_seg.watershed(-distance, markers, mask=thresh)
+    return labels
+
+def get_book_alternative(input_img):
+    return get_morph(input_img, morph="gradient", sz=(20,20), threshold=True).astype(np.uint8)
+
 def segmentation(img, hsv_img):
-    book_img, gray_img = get_book(hsv_img)
-    res, thresh = cv2.threshold(gray_img, 0, 255, cv2.THRESH_OTSU)
-    sure_fg, sure_bg = morphologize(thresh)
-    markers = get_markers(sure_fg, sure_bg)
-    img, markers = watershed(img, markers)
-    res, img_dilated = dilate(markers, img)
-    _, thresh = cv2.threshold(cv2.cvtColor(img_dilated, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_OTSU)
-    book_cont, cont_x, cont_y, cont_w, cont_h = find_contours(thresh, 0)
+    book_img = get_book_alternative(img)
+    book_cont, cont_x, cont_y, cont_w, cont_h = find_contours(book_img, 0)
+    # res, thresh = cv2.threshold(gray_img, 0, 255, cv2.THRESH_OTSU)
+    # sure_fg, sure_bg = morphologize(book_img)
+    # markers = get_markers(sure_fg, sure_bg)
+    # img, markers = watershed(img, markers)
+    # res, img_dilated = dilate(markers, img)
+    # _, thresh = cv2.threshold(cv2.cvtColor(img_dilated, cv2.COLOR_BGR2GRAY), 0, 255, cv2.THRESH_OTSU)
+    # book_cont, cont_x, cont_y, cont_w, cont_h = find_contours(thresh, 0)
 
     ## Warning!
     # Recall that the perimeter given book_cont.shape is (necessarily) lower than the perimeter of the input image

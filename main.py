@@ -3,10 +3,12 @@ import numpy as np
 import scipy as scp
 
 from basics import open_file, preprocessing, pyramid, resize, show_img, write_img
-from segmentation import segmentation, find_contours
+from segmentation import alternative_segmentation, segmentation, find_contours
 from sharpening import sharpen
 from noise_and_shades import remove_noise, correct_shading
 from line_cleaning import line_cleaning
+from morphology import get_morph
+from filters import fire
 
 
 ## Image name format should be "IMG_+{# of img}+.JPG"
@@ -33,13 +35,20 @@ from line_cleaning import line_cleaning
 def exec(img):
 
     scaled_img = pyramid(img, direction="down", iterations=2)
+    # tophat = get_morph(img=scaled_img, sz=(30,30), morph="tophat", threshold=True)
+    # show_img(tophat, "tophat image")
     # show_img(scaled_img, "Downsampled image")
+    # shading_corrected = correct_shading(scaled_img).astype(np.uint8)
+    shading_corrected = correct_shading(scaled_img).astype(np.uint8)
 
-    hsv_img = preprocessing(scaled_img).astype(np.uint8)
-    # show_img(hsv_img, "HSV-converted image")
+    hsv_img = preprocessing(shading_corrected).astype(np.uint8)
+    show_img(hsv_img, "HSV-converted image")
 
     segmented_img = segmentation(scaled_img, hsv_img).astype(np.uint8)
-    # show_img(segmented_img, "Segmented image")
+    show_img(segmented_img, "Segmented image")
+
+    # segmented_two = alternative_segmentation(scaled_img, hsv_img).astype(np.uint8)
+    # show_img(segmented_two, "Segmented two")
 
     # noise_removed = remove_noise(segmented_img)
     # show_img(noise_removed, "Noise-removed image")
@@ -49,22 +58,26 @@ def exec(img):
 
     gs = cv2.cvtColor(shading_corrected, cv2.COLOR_BGR2GRAY)
     # show_img(gs, "Grayscale image"
+    # fire_filtered = fire(gs)
+    # show_img(fire_filtered, "fire filtered")
 
-    sharpened, bins = sharpen(gs)
+    sharpened = sharpen(gs)
     sharpened = sharpened.astype(np.uint8)
     # show_img(sharpened, "Sharpened image")
 
     lines_cleared = line_cleaning(sharpened, gs)
+    write_img("cleared_img_non_iterated.jpg", lines_cleared)
 
     for i in range(4):
         shading_corrected = correct_shading(cv2.cvtColor(lines_cleared, cv2.COLOR_GRAY2BGR)).astype(np.uint8)
         gs = cv2.cvtColor(shading_corrected, cv2.COLOR_BGR2GRAY)
-        sharpened, bins = sharpen(gs.astype(np.uint8))
+        sharpen(gs.astype(np.uint8), convolve=True)
         sharpened = sharpened.astype(np.uint8)
         lines_cleared = line_cleaning(sharpened, lines_cleared)
 
-    show_img(lines_cleared, "lines image")
-    write_img("cleared_img.jpg", lines_cleared)
+    # show_img(lines_cleared, "lines image")
+    write_img("cleared_img_iterated.jpg", lines_cleared)
+    return lines_cleared
 
 
 def single(os: str):
@@ -85,20 +98,21 @@ def multi(os, n_img):
         f_name = 'test_img/IMG_'
     if os == "win":
         f_name = 'test_img\IMG_'
-    f_obj = open_file(name=f_name, multiple=True, n_img=n_img)
+
     # We can retrieve less images than we load to the array
     print("####" * 10)
     print("Retrieving image generator. This may take a while, depending on image size and number of images")
     print("####" * 10)
-    img_generator = f_obj.get_img_generator(n_img=n_img)
-
+    img_generator = open_file(name=f_name, multiple=True, n_img=n_img)
+    print("Starting the script")
     for i in range(n_img):
+        print("Starting image:", i+1, "/", n_img)
         # The image generator is a yield function.
         # Calling it with the next keyword will iterate the function and return one image from the generator loop
         # Saves overhead memory costs (in comparison to keeping a long array of large images in memory)
         img = next(img_generator)
         final = exec(img)
-        show_img(final, "Final image")
+        # show_img(final, "Final image")
         write_img("final_image_"+str(i)+".jpg", final)
 
 
@@ -110,6 +124,7 @@ def main(os: str, multiple_images = False, n_img = 1):
     else:
         final_img = single(os)
 
-main(os="win")
-# main(os="win", multiple_images=True, n_img = 5)
+
+# main(os="win")
+main(os="win", multiple_images=True, n_img = 5)
 
