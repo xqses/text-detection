@@ -27,7 +27,7 @@ A simple summary of a recommended installation:
 #### IMPORTANT NOTICE
 In order to use this program, the user must install the opencv-python-contrib package. <br>
 There are conflicts with installing both opencv-python and opencv-python-contrib. <br>
-Therefore, make sure to install the opencv-python-contrib package in a new virtual environment.
+Therefore, make sure to install the opencv-python-contrib package (and _only_ the contrib-packabge) in a new virtual environment.
 
 
 2. Clone this repository to your file system. <br>
