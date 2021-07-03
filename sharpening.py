@@ -1,8 +1,13 @@
 import numpy as np
 import scipy as scp
 from matplotlib import pyplot as plt
+from scipy.interpolate import make_interp_spline, BSpline
+# import skimage
 
-def eq_hist_sharpen(img, convolve: bool, n_segs = 0):
+from basics import show_img
+
+
+def eq_hist_sharpen(img, convolve: bool, type="nct", n_segs = 0):
     seg_array = [None] * n_segs
     cdf_array = [None]
     start_x, start_y = 0, 0
@@ -34,15 +39,21 @@ def eq_hist_sharpen(img, convolve: bool, n_segs = 0):
         # sharpened = np.interp(img.flatten(),bins[:-1],cdf)
     else:
         hist, bins = np.histogram(img.flatten(), 256, density=True)
-        cdf = hist.cumsum()
-        # Normalize cdf to interval [0, 255]
-        cdf = ((cdf - cdf.min()) / (cdf.max() - cdf.min()) * 255)
+        if type=="t":
+            t_cdf = scp.stats.t.cdf(hist, df=255, loc=np.median(hist), scale=np.var(hist))
+            t_cdf = t_cdf.cumsum()
+            cdf = ((t_cdf - t_cdf.min()) / (t_cdf.max() - t_cdf.min()) * 255)
+        elif type=="emp":
+            # print("emp")
+            cdf = hist.cumsum()
+            cdf = ((cdf - cdf.min()) / (cdf.max() - cdf.min()) * 255)
+        else:
+            # print("nct")
+            nct_cdf = scp.stats.nct.cdf(hist, nc=6, df=256, scale=np.var(hist))
+            nct_cdf = nct_cdf.cumsum()
+            cdf = ((nct_cdf - nct_cdf.min()) / (nct_cdf.max() - nct_cdf.min()) * 255)
 
-        # Define convolution signal
-        # Really strange idea I had: convolve the 1D histogram with some well defined signal function
-        # Might be useful as a filter to suppress / smoothen the image without dealing with 2D filters
-        # The CDF of the histogram of the book segment will resemble an exponential curve
-        # hence the exponential signal for convoluion
+
     if convolve:
         exp_interv = np.linspace(0, 5.54, num=256)
         exp_signal = np.exp(exp_interv) / 20
@@ -52,18 +63,26 @@ def eq_hist_sharpen(img, convolve: bool, n_segs = 0):
 
     # Interpolate the image from the CDF
         #print("hello")
+    # xnew = np.linspace(bins.min(), bins.max(), 256)
+    # spl = make_interp_spline(bins[:-1], hist, k=1)  # type: BSpline
     sharpened = np.interp(img.flatten(), bins[:-1], cdf)
-        # print(sharpened)
+    # show_img(sharpened.reshape(img.shape), "sharpen")
 
-        # plt.figure()
-        # plt.hist(bins[:-1], bins, weights=cdf)
-        # plt.plot(exp_interv, exp_signal, 'r')
-        # plt.show()
+    # show_img(power_smooth.reshape(img.shape), "i")
+    # print(sharpened)
+
+    # plt.figure()
+    # plt.hist(bins[:-1], bins, weights=cdf)
+    # plt.show()
         # print(img.shape)
     reshaped = sharpened.reshape(img.shape)
+    # reshaped_float = float_sharpen.reshape(img.shape)
+    # show_img(img, "not sharp")
+    # show_img(reshaped_float.astype(np.uint8), "normal eqhist")
+    # show_img(spline_float.astype(np.uint8), "spline eqhist")
 
-    return sharpened.reshape(img.shape)
+    return reshaped
 
-def sharpen(img, convolve=False):
+def sharpen(img, type="nct", convolve=False):
     # proxy name
-    return eq_hist_sharpen(img, convolve)
+    return eq_hist_sharpen(img, convolve,  type=type)

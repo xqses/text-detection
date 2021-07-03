@@ -179,52 +179,61 @@ def convolution(img, fltr, use_threads):
 
 
 def non_max_supp(filtered_img, wh):
-    # Not supported yet
-    rows, channels = map(int, filtered_img.shape)
+    from skimage.feature.peak import peak_local_max
+    from scipy.ndimage.measurements import center_of_mass
+    from scipy.ndimage import label, maximum_filter
+    from scipy.ndimage.morphology import generate_binary_structure, grey_dilation
 
-    mask_size = (wh, wh) # dilation mask size tuple
-    mx = scp.ndimage.morphology.grey_dilation(input=filtered_img, size=mask_size, structure=np.ones(mask_size))
-    # horizontal = rlsa.rlsa(filtered_img, True, False, 5)
-    # vertical = rlsa.rlsa(horizontal, False, True, 5)
-    show_img(filtered_img, "filtered image")
-    show_img(mx, "Grey dilated filtered image")
-    # show_img(horizontal)
-    # show_img(vertical)
-
-    # write_img("strct_tensor.JPG", filtered_img)
-    # write_img("hessian_det.JPG", mx)
-    #
-    # from skimage.feature.peak import peak_local_max
-    # from scipy.ndimage.measurements import center_of_mass
-    # from scipy.ndimage import label, maximum_filter
-    # from scipy.ndimage.morphology import generate_binary_structure, grey_dilation
-
-    # mx = grey_dilation(input=filtered_img, size=(wh,wh), structure=np.ones((wh,wh)))
-    # image_max = maximum_filter(mx, size=(wh,wh), mode='constant')
+    mx = grey_dilation(input=filtered_img, size=(wh,wh), structure=np.ones((wh,wh)))
+    image_max = maximum_filter(mx, size=(wh,wh), mode='constant')
 
     # print(values)
-    # filtered_img[0:wh, :] = 0
-    # filtered_img[:, 0:wh] = 0
+    filtered_img[0:wh, :] = 0
+    filtered_img[:, 0:wh] = 0
 
-    # filtered_img_max = filtered_img * (filtered_img == mx)
+    filtered_img_max = filtered_img * (filtered_img == mx)
     # print(filtered_img_max)
-    # filtered_img_max = np.where(filtered_img & mx)
-    # coords = np.array(zip(filtered_img_max))
-    # vals = [None] * len(coords)
-    # or i, coord in enumerate(coords):
-    #     vals[i] = coords[coord]
+    filtered_img_max = np.where(filtered_img & mx)
+    coords = np.array(zip(filtered_img_max))
+    vals = [None] * len(coords)
+    for i, coord in enumerate(coords):
+        vals[i] = coords[coord]
 
-    # vals = -1 * vals
+    vals = -1 * vals
     # print(len(coords), len(vals))
-    # sort_idx = np.argsort(vals)
-    # sorted_vals = np.sort(vals)
+    sort_idx = np.argsort(vals)
+    sorted_vals = np.sort(vals)
 
-    # print(sorted_vals)
-
-
+    print(sorted_vals)
 
 
-def key_pts(img, fltr, args, use_threads):
+def second_order_deriv(img, fltr, use_threads=False):
+    g2D = cv2.getGaussianKernel(ksize=9, sigma=9 / 6)
+    k_conv_k, d_conv_k, d2_conv_k = kernel(fltr)
+
+    Ixx = convolution(img=img, fltr=np.outer(k_conv_k, d2_conv_k), use_threads=use_threads).astype(np.uint8)
+    # Ixx = convolution(img=Ixx, fltr=g2D, use_threads=use_threads)
+
+    Iyy = convolution(img=img, fltr=np.outer(d2_conv_k, k_conv_k), use_threads=use_threads).astype(np.uint8)
+    # Iyy = convolution(img=Iyy, fltr=g2D, use_threads=use_threads)
+
+    Ixy = convolution(img=img, fltr=np.outer(d_conv_k, d_conv_k), use_threads=use_threads).astype(np.uint8)
+    # Ixy = convolution(img=Ixy, fltr=g2D, use_threads=use_threads)
+
+    return Ixy
+
+def get_laplacian(img, fltr, use_threads=False):
+    k_conv_k, d_conv_k, d2_conv_k = kernel(fltr)
+    Ix = convolution(img=img, fltr=np.outer(k_conv_k, d_conv_k.T), use_threads=use_threads)
+    Iy = convolution(img=img, fltr=np.outer(d_conv_k, k_conv_k.T), use_threads=use_threads)
+    Ix2 = Ix * Ix
+    Ix2 = convolution(img=Ix2, fltr=g2D, use_threads=use_threads)
+    Iy2 = Iy * Iy
+    # Iy2 = convolution(img=Iy2, fltr=g2D, use_threads=use_threads)
+    return (Ix2 + Iy2).astype(np.uint8)
+
+
+def key_pts(img, fltr, args, use_threads=False):
     ## A Python rewrite of the keyPoints.m file
     print("entered key_pts")
 
@@ -268,33 +277,51 @@ def key_pts(img, fltr, args, use_threads):
 
         Ixy = convolution(img=img, fltr=np.outer(d_conv_k, d_conv_k), use_threads=use_threads)
         Ixy = convolution(img=Ixy, fltr=g2D, use_threads=use_threads)
+        hessian = (Ixx * Iyy) - (Ixy ** 2)
         show_img((Ixx * Iyy) - (Ixy ** 2), fltr + " Hessian filtered image")
+        show_img(cv2.cvtColor(hessian.astype(np.uint8), cv2.COLOR_GRAY2BGR), "Color Hessian")
         mx = scp.ndimage.morphology.grey_dilation(input=(Ixx * Iyy) - (Ixy ** 2), size=(5, 5), structure=np.ones((5,5)))
         show_img(mx, fltr + " Hessian filtered grey dilation")
         # return non_max_supp((Ixx * Iyy) - (Ixy ** 2), 5)
 
 
-def butterworth(img, cutoff, order):
-    # Not sure why this does not work properly. Possibly a problem with the TF
+def butterworth(img, d0 = 50, d1 = 150, n=4):
+    # Usage BUTTERWORTHBPF(I, DO, D1, N)
+    # Example
+    # ima = imread('grass.jpg');
+    # ima = rgb2gray(ima);
+    # filtered_image = butterworthbpf(ima, 30, 120, 4);
+    try:
+        assert img.dtype == np.uint8
+    except AssertionError:
+        img = img.astype(np.uint8)
+    try:
+        assert len(img.shape) == 2
+    except AssertionError:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    ## Fourier transform and shift the image
-    rows, cols, ft_shift = fourier(img)
+    ny, nx = img.shape
 
-    # Define the 2D transfer function
+    fftI = scp.fft.fft2(img, (2 * ny - 1, 2 * nx - 1))
+    fftI = scp.fft.fftshift(fftI)
+    filter1 = np.ones((2 * ny - 1, 2 * nx - 1))
+    filter2 = np.ones((2 * ny - 1, 2 * nx - 1))
+    filter3 = np.ones((2 * ny - 1, 2 * nx - 1))
+    for y in range(fftI.shape[0]):
+        for x in range(fftI.shape[1]):
+            dist = np.sqrt(((y - (ny + 1))**2 + (x - (nx + 1))**2))
+            filter1[y, x] = 1 / (1 + (dist / d0)**(2 * n))
+            filter2[y, x] = 1 / (1 + (dist / d1)**(2 * n))
+            filter3[y, x] = 1.0 - filter2[y, x]
+            filter3[y,x] = filter1[y,x] * filter3[y,x]
 
-    sample_rate = 255
-    normal_cutoff = float(cutoff) / (sample_rate / 2)
-    b, a = scp.signal.butter(order, normal_cutoff, btype='lowpass')
-    y = scp.signal.filtfilt(b, a, ft_shift)
+    filtered_image = fftI + (filter3 * fftI)
+    filtered_image = scp.fft.ifftshift(filtered_image)
+    filtered_image = scp.fft.ifft2(filtered_image, (2 * ny - 1, 2 * nx - 1))
+    filtered_image = np.real(filtered_image[0:ny, 0: nx])
+    filtered_image = filtered_image.astype(np.uint8)
 
-    ## Multiply the TF and transformed image
-    # G = np.matmul(np.transpose(H), ft_shift)
-    # Invert the convolution to get a matrix of complex numbers
-    inv_y = scp.fft.ifft2(y)
-    # convert the complex numbers back to real distances
-    real_y = np.sqrt((np.real(inv_y) ** 2) + (np.imag(inv_y) ** 2))
-    # normalize G
-    return real_y
+    return filtered_image
 
 def fire(img):
     print(img.shape)

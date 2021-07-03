@@ -5,7 +5,7 @@ from basics import resize, show_img
 
 ## A Python rewrite of shaCorr.m authored by Anders Hast
 # This code follows the license in the original implementation
-# Written by: Olle Dahlstedt 2021-03-04
+# Python rewrite by: Olle Dahlstedt 2021-03-04
 
 ######### Copyright and permission notice: ##########
 ##  Copyright (c) 2011-2019 Anders Hast
@@ -22,7 +22,8 @@ from basics import resize, show_img
 ##
 ## The Software is provided "as is", without warranty of any kind.
 
-def shaCorr(inp_img, edge_preserving = False, f = 0.5, bright = 0.8, dark = 1.0, d = 6 , iter = 10, contrast = 2, corr = 0, pfact = 0, msize=100):
+def shaCorr(inp_img, edge_preserving = False, f = 0.5, bright = 0.5, dark = 2.0, d = 6 , iter = 5, contrast = 2, corr = 0, pfact = 0, msize=100):
+    resized = None
     if len(inp_img.shape) > 2:
         final = cv2.cvtColor(inp_img, cv2.COLOR_BGR2HSV)
         if edge_preserving:
@@ -37,10 +38,12 @@ def shaCorr(inp_img, edge_preserving = False, f = 0.5, bright = 0.8, dark = 1.0,
         cols, rows = map(int, inp_img.shape)
         img = inp_img
 
+
     ## We should convolve the kernel with our chosen window size
 
     # Lowpass filter setup
     N, sigma, Sret = mask([cols, rows], msize)
+    print(sigma)
     S = Sret
     krn = np.ones(S)
     div2 = cv2.GaussianBlur(krn, krn.shape, sigma)
@@ -48,106 +51,42 @@ def shaCorr(inp_img, edge_preserving = False, f = 0.5, bright = 0.8, dark = 1.0,
     if f > 0:
         # Highpass filter setup
         N, sigma, _ = mask(np.ceil(N * f), 0)
+        print(sigma)
         div1 = cv2.GaussianBlur(krn, krn.shape, sigma)
 
     k = 0
     while k < iter:
-        if edge_preserving:
-            ## Added by OD 2021-03-05
 
-            # Division of subregions
-            ## Resizing the image to roughly kern shape x 2
-            ## Let subregion around each pixel be ceil(kern shape / 10)
-            # I.e kern shape = 101, 143 -> subregion = ceil((202, 146) / 10) = (21, 15)
-            # We would create our subwindow around each pixel thus from pixel at coord (21, 15)
-            # Importantly, this means we will not blur the border of the image, which is fine in our material
+        if f>0:
+            imq = resize(img, (krn.shape[1], krn.shape[0]))
+            # Compute the bandpass filter, highpass -> lowpass
+            p1 = cv2.GaussianBlur(imq, krn.shape, sigma) / div1
+            # print(p1)
+            p2 = cv2.GaussianBlur(imq, krn.shape, sigma) / div2
+
+            im2 = p2 - p1
+            q = resize(im2, (img.shape[1], img.shape[0]))
+
+            q[q < 0] *= bright
+            q[q > 0] *= dark
+            img = img + q
+
+
+            N, sigma, _ = mask(np.ceil(np.max(S) / d), 0)
+            div = cv2.GaussianBlur(krn, krn.shape, sigma)
             resized = resize(img, (krn.shape[1], krn.shape[0]))
-            print(resized.shape)
-            d = 30
-            window_y, window_x = int(np.ceil(resized.shape[0] // d)), int(np.ceil(resized.shape[1] // d))
-            # We cannot guarantee that either y or x region will be odd, so add if clause
-            window_y += 1 if window_y % 2 == 0 else 0
-            window_x += 1 if window_x % 2 == 0 else 0
-            kern = np.ones((window_y*2, window_x*2, 3))
+            p = cv2.GaussianBlur(resized, krn.shape, sigma) / div
 
-            ### Determine the number of subwindows ###
-            # Since we will not blur the borders,
-            # we will have one subregion around each pixel except the border pixels
-
-            _, sigma, _ = mask(np.max([window_y,window_x]), 0)
-            div = cv2.GaussianBlur(kern, (window_y, window_x), sigma)
-
-            inits = {}
-            # Using a nested dictionary for faster lookup
-            # This makes things slightly complicated-looking (and coming up with)
-            # This also means most operations are done within the loop
-            # But it saves runtime, so that's nice
-
-            # As we need a window around each pixel, this cannot be run outside two loops
-            for y in range(window_y, resized.shape[0]-window_y):
-                inits[y] = {}
-                # print("y =", y, "window y =", window_y, "y - window_y = ", (y - window_y))
-                for x in range(window_x, resized.shape[1]-window_x):
-                    inits[y][x] = {}
-                    # print("x =", x, "window x =", window_x, "x - window_x = ", (x - window_x))
-                    subwindow = resized[y-window_y:y+window_y, x-window_x:x+window_x]
-
-                    ### Blur each window ###
-                    # Note: in order to avoid too strong blurring (erasing all color information),
-                    # Blur with kernel size half of each window
-
-                    p = cv2.GaussianBlur(subwindow, (window_y, window_x), sigma) / div
-                    # Color mean within each (now blurred) window
-                    color_means = np.array([np.mean(p[:, :, 0]), np.mean(p[:, :, 1]), np.mean(p[:, :, 2])])
-                    inits[y][x]["cmeans"] = color_means
-
-
-                    # pixelwise distances (5)
-                    pd = np.array([np.linalg.norm(np.array([resized[y,x][0], color_means[0]]), ord=2),
-                                  np.linalg.norm(np.array([resized[y,x][1], color_means[1]]), ord=2),
-                                  np.linalg.norm(np.array([resized[y,x][2], color_means[2]]), ord=2)])
-
-                    inits[y][x]["pixelwise_distance"] = pd
-
-                    # Mean pixelwise distance (6)
-                    mpd = np.mean(pd)
-                    inits[y][x]["mean_pixelwise_distamce"] = mpd
-
-            t = 20
-            im = np.zeros(resized.shape)
-            wts = np.ones(resized.shape)
-            for y in range(window_y, resized.shape[0]-window_y):
-                for x in range(window_x, resized.shape[1] - window_x):
-                    im[y,x] = im[y,x] + (resized[y,x] * ((t - inits[y][x]["pixelwise_distance"])**2) * inits[y][x]["cmeans"])
-                    wts[y,x] = wts[y,x] + (resized[y,x] * (t - inits[y][x]["pixelwise_distance"])**2)
-
-            p = im / wts
-            p = p[:,:,2]
-
-        else:
-            if f>0:
-                imq = resize(img, (krn.shape[1], krn.shape[0]))
-                # Compute the bandpass filter, highpass -> lowpass
-                p1 = cv2.GaussianBlur(imq, krn.shape, sigma) / div1
-                # print(p1)
-                p2 = cv2.GaussianBlur(imq, krn.shape, sigma) / div2
-
-                im2 = p2 - p1
-                q = resize(im2, (img.shape[1], img.shape[0]))
-
-                q[q < 0] *= bright
-                q[q > 0] *= dark
-                img = img + q
-
-
-                N, sigma, _ = mask(np.ceil(np.max(S) / d), 0)
-                div = cv2.GaussianBlur(krn, krn.shape, sigma)
-                resized = resize(img, (krn.shape[1], krn.shape[0]))
-                p = cv2.GaussianBlur(resized, krn.shape, sigma) / div
-
-        if len(resized.shape) > 2:
-            resized = resized[:,:,2]
+        try:
+            assert resized is not None
+            if len(resized.shape) > 2:
+                resized = resized[:,:,2]
+        except AssertionError:
+            # Only lowpass filtering
+            resized = resize(img, (krn.shape[1], krn.shape[0]))
+            p = cv2.GaussianBlur(resized, krn.shape, sigma) / div2
         pm = np.mean(np.mean(p))
+        # s = abs(h(x,y) - mu_I(x,y))
         s = np.abs(resized-p)
         ky, kx = s.shape[0]//2, s.shape[1]//2
         ky += 1 if ky % 2 == 0 else 0

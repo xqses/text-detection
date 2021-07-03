@@ -1,6 +1,9 @@
 
 from matplotlib import pyplot as plt
 import cv2
+import numpy as np
+from skimage.io import imread
+
 ## Help classes ##
 
 class ImageHelper:
@@ -11,11 +14,15 @@ class ImageHelper:
     def set_img_array(self, name, n_img, img_format):
         self.img_array = [None] * n_img
         for i in range(n_img):
-            self.img_array[i] = cv2.imread(name + str(i + 1) + img_format)
+            self.img_array[i] = cv2.imread(name + str(i) + img_format)
 
     def get_img_generator(self, name, img_format, n_img):
         for i in range(n_img):
-            yield cv2.imread(name + str(i + 1) + img_format)
+            yield cv2.imread(name + str(i+20) + img_format)
+
+    def get_subimg_generator(self, name, img_format, n_img):
+        for i in range(n_img):
+            yield cv2.imread(name + str(i) + img_format)
 
     def get_img_array(self, n_img):
         return self.img_array
@@ -27,7 +34,11 @@ def write_img(name, img):
     status = cv2.imwrite(name, img)
     return status
 
-def open_file(name: str, multiple: bool, n_img: int):
+def open_file(name: str, multiple: bool, n_img: int, sub_img = False):
+    if sub_img:
+        imgs_obj = ImageHelper()
+        imgs_obj = imgs_obj.get_subimg_generator(name=name, n_img=n_img, img_format=".png")
+        return imgs_obj
     if multiple:
         imgs_obj = ImageHelper()
         imgs_obj = imgs_obj.get_img_generator(name=name, n_img=n_img, img_format=".JPG")
@@ -37,7 +48,7 @@ def open_file(name: str, multiple: bool, n_img: int):
         img_obj.img = img_obj.get_img(name=name)
         return img_obj
 
-def show_img(img, title):
+def show_img(img, title="No title"):
     plt.imshow(img, cmap = 'gray', interpolation = 'bicubic')
     plt.title(title)
     plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
@@ -49,7 +60,6 @@ def preprocessing(img):
     # img_rlsa_horizontal = rlsa.rlsa(thresh, True, False, 5)
     # img_rlsa_vertical = rlsa.rlsa(img_rlsa_horizontal, False, True, 5)
     return hsv_img
-
 
 def pyramid(img, direction: str, iterations: int):
     ## The pyramid iterates by factors of two in either direction
@@ -86,3 +96,27 @@ class ContourHelper:
     def array_gen(self):
         for i in range(len(self.array)):
             yield self.array[i]
+
+
+def gen_grid(im_w, im_h):
+    print(im_w, im_h)
+    grid_img = np.zeros((im_w, im_h)).astype(np.uint8)
+    grid_img[:,:] = 255
+    grid_w = im_w - 200
+    grid_h = im_h - 100
+    # Recall each grid consists of rougly 30 rows and 30 columns
+    x_step = grid_w // 30
+    print(x_step)
+    y_step = grid_h // 30
+    print(y_step)
+    x = x_step
+    y = y_step
+    while x < grid_img.shape[1]:
+        cv2.line(grid_img, (100, x), (x, grid_img.shape[0]), color=0, thickness=3)
+        x += x_step
+
+    while y < grid_img.shape[0]:
+        cv2.line(grid_img, (100, y), (grid_img.shape[1], y), color=0, thickness=3)
+        y += y_step
+
+    show_img(grid_img, "grid")

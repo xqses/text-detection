@@ -9,7 +9,7 @@ def morphologize(prep_img):
     # foreground = normalized distance transformed opening
     # may be thresholded if desired
     opening = cv2.morphologyEx(prep_img, cv2.MORPH_OPEN, np.ones((3, 3), np.int), iterations=10)
-    sure_bg = cv2.dilate(opening, None, iterations=5)
+    sure_bg = cv2.dilate(opening, None)
     sure_bg = sure_bg - cv2.erode(sure_bg, None)
     dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
     sure_fg = ((dist_transform - dist_transform.min()) / (dist_transform.max() - dist_transform.min()) * 255).astype(
@@ -51,7 +51,7 @@ def get_markers(sure_fg, sure_bg):
 
 
 def watershed(img, markers):
-    markers = cv2.watershed(img, markers)
+    cv2.watershed(img, markers)
     return img, markers
 
 
